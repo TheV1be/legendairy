@@ -7,13 +7,53 @@ export default function Home() {
     const [username, setUsername] = useState('');
     const [story, setStory] = useState('You wake up in a damp, silent stone dungeon...');
     const [playerInput, setPlayerInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false); // Tracks if the AI is currently thinking
 
-    const handleChoiceSubmit = (e: React.SyntheticEvent) => {
+    const handleChoiceSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
-        if (!playerInput.trim()) return;
+        if (!playerInput.trim() || isLoading) return;
 
-        setStory((prevStory) => prevStory + `\n\n> ${username}: ${playerInput}`);
-        setPlayerInput('');
+        const userAction = playerInput.trim();
+        setPlayerInput(''); // Instantly clear the box for a responsive feel
+        setIsLoading(true);
+
+        // 1. Instantly log what the player chose onto the screen dashboard
+        setStory((prev) => prev + `\n\n> ${username}: ${userAction}\n\n`);
+
+        try {
+            // 2. Broadcast the action payload across our local server route channel
+            const response = await fetch('/api/game', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    username,
+                    currentStory: story,
+                    prompt: userAction,
+                }),
+            });
+
+            if (!response.body) throw new Error('Readable stream missing from engine channel');
+
+            // 3. Open a low-level Reader stream loop to read network text data tokens live
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+
+            while (true) {
+                const { value, done } = await reader.read();
+                if (done) break;
+
+                // Decode the stream binary block into clear string tokens
+                const textChunk = decoder.decode(value);
+
+                // Append characters to the screen log in real-time as they cross the network wire
+                setStory((prev) => prev + textChunk);
+            }
+        } catch (error) {
+            console.error(error);
+            setStory((prev) => prev + '\n\n[System Error: Engine disconnected from AI grid.]');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     return (
@@ -50,7 +90,7 @@ export default function Home() {
                         Adventurer: <span className="text-amber-400 font-bold">{username}</span>
                     </p>
 
-                    <div className="bg-zinc-950 p-4 rounded min-h-[180px] border border-zinc-800 font-mono text-sm leading-relaxed mb-4 whitespace-pre-wrap">
+                    <div className="bg-zinc-950 p-4 rounded h-[300px] overflow-y-auto border border-zinc-800 font-mono text-sm leading-relaxed mb-4 whitespace-pre-wrap">
                         {story}
                     </div>
 
@@ -58,15 +98,17 @@ export default function Home() {
                         <input
                             type="text"
                             value={playerInput}
+                            disabled={isLoading}
                             onChange={(e) => setPlayerInput(e.target.value)}
-                            placeholder="What do you do next?..."
-                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-4 py-2 text-sm focus:outline-none focus:border-amber-500 text-zinc-50 font-mono"
+                            placeholder={isLoading ? "The Dungeon Master is thinking..." : "What do you do next?..."}
+                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-4 py-2 text-sm focus:outline-none focus:border-amber-500 text-zinc-50 font-mono disabled:opacity-50"
                         />
                         <button
                             type="submit"
-                            className="bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-6 py-2 rounded text-sm transition font-mono"
+                            disabled={isLoading}
+                            className="bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-800 text-zinc-950 disabled:text-zinc-500 font-bold px-6 py-2 rounded text-sm transition font-mono"
                         >
-                            Action
+                            {isLoading ? "..." : "Action"}
                         </button>
                     </form>
                 </div>

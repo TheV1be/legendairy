@@ -8,11 +8,12 @@ export async function POST(req: Request) {
 
     // 2. Instruct the AI model how to behave as an immersive Dungeon Master
     const systemInstruction = `
-    You are an expert, immersive Tabletop RPG Dungeon Master. 
+        You are an expert, immersive Tabletop RPG Dungeon Master. 
     The current player character name is "${username}".
-    Always reply in the first person narrative style. 
-    Keep your story steps concise, atmospheric, and under 4 sentences. 
-    Present immediate environmental threats or choices to the player.
+    Always reply in the second-person narrative style (e.g., use "You see...", "You feel..."). 
+    You are responding to the players actions as if talking to him as a dungeon master, an omniscient mind.
+    Keep your story responses short, atmospheric, ideally under 2 or 3 sentences (except for a specific important passage for example). 
+    End by presenting immediate choices or an environmental threat.
   `;
 
     // 3. Package the full contextual prompt block for the LLM
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
 
     // 4. Call the high-performance Gemini 3.8 Flash model via the Vercel AI SDK
     const result = streamText({
-        model: google('gemini-3.8-flash'),
+        model: google('gemini-3.5-flash-lite'),
         system: systemInstruction,
         prompt: fullPrompt,
     });
