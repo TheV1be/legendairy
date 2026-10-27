@@ -4,6 +4,9 @@ import { useState } from 'react';
 import LandingScreen from '@/components/LandingScreen';
 import GameScreen from '@/components/GameScreen';
 
+// 1. Defining a strict, expandable type matrix layout list for all current and upcoming engine modes
+export type GameMode = 'FREE' | 'CHOICE';
+
 export default function Home() {
     const [isPlaying, setIsPlaying] = useState(false);
     const [username, setUsername] = useState('');
@@ -12,17 +15,19 @@ export default function Home() {
     const [isLoading, setIsLoading] = useState(false);
     const [gamePreferences, setGamePreferences] = useState('A damp stone dungeon, medium difficulty');
 
-    // Core game length and campaign engine state markers
+    // Game lifecycle and turn pacing counters
     const [turnCount, setTurnCount] = useState(1);
     const [maxTurns, setMaxTurns] = useState('10');
     const [gameState, setGameState] = useState<'PLAYING' | 'WON' | 'LOST'>('PLAYING');
 
-    // Dynamic game-world telemetry engines
+    // Dynamic telemetry metrics states
     const [inventory, setInventory] = useState<string[]>([]);
     const [currentZone, setCurrentZone] = useState('Starting Area');
     const [tacticalStatus, setTacticalStatus] = useState('Ready for adventure');
 
-    // Handles generating the custom opening story paragraph
+    // Refactored: Swapped binary true/false boolean out for a scalable type string selector
+    const [gameMode, setGameMode] = useState<GameMode>('FREE');
+
     const handleStartGame = async () => {
         if (isLoading) return;
         setIsLoading(true);
@@ -34,13 +39,16 @@ export default function Home() {
         setCurrentZone('Starting Area');
         setTacticalStatus('Ready for adventure');
 
+        // Clean dynamic link router resolution block logic
+        const targetApiRoute = gameMode === 'CHOICE' ? '/api/game/choice' : '/api/game/free';
+
         try {
-            const response = await fetch('/api/game', {
+            const response = await fetch(targetApiRoute, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username,
-                    currentStory: `STARTING NEW GAME. Player Preferences: ${gamePreferences}`,
+                    currentStory: `STARTING NEW GAME. Player Preferences: ${gamePreferences}. Input limits mode state: ${gameMode}`,
                     prompt: 'Generate the opening scene paragraph introducing the setting.',
                     turnCount: 1,
                     gamePreferences,
@@ -63,13 +71,11 @@ export default function Home() {
                 const textChunk = decoder.decode(value);
                 fullIncomingText += textChunk;
 
-                // Dynamic Filter: Separate narrative text from control block telemetry tags
                 const parsedStory = parseMetadata(fullIncomingText);
                 setStory(parsedStory.cleanStory);
             }
 
-            // Post-stream evaluation processing
-            processTelemetries(fullIncomingText);
+            processTelemetries(fullIncomingText, '');
 
         } catch (error) {
             console.error(error);
@@ -79,25 +85,35 @@ export default function Home() {
         }
     };
 
-    // Handles submitting player choices mid-game
     const handleChoiceSubmit = async (e: React.SyntheticEvent) => {
         e.preventDefault();
         if (!playerInput.trim() || isLoading || gameState !== 'PLAYING') return;
 
-        const userAction = playerInput.trim();
+        const cleanInput = playerInput.trim();
+
+        // Type Enforcement Filter: If CHOICE engine mode matches true, reject any inputs outside numeric values
+        if (gameMode === 'CHOICE' && !['1', '2', '3'].includes(cleanInput)) {
+            setStory((prev) => prev + `\n\n> ${username}: ${cleanInput}\n[System Notice: Invalid selection. Choice mode active. Type exactly 1, 2, or 3.]`);
+            setPlayerInput('');
+            return;
+        }
+
         setPlayerInput('');
         setIsLoading(true);
 
-        setStory((prev) => prev + `\n\n> ${username}: ${userAction}\n\n`);
+        const baseStoryHistory = story + `\n\n> ${username}: ${cleanInput}\n\n`;
+        setStory(baseStoryHistory);
+
+        const targetApiRoute = gameMode === 'CHOICE' ? '/api/game/choice' : '/api/game/free';
 
         try {
-            const response = await fetch('/api/game', {
+            const response = await fetch(targetApiRoute, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username,
                     currentStory: story,
-                    prompt: userAction,
+                    prompt: gameMode === 'CHOICE' ? `Selected Option Number ${cleanInput}` : cleanInput,
                     turnCount,
                     gamePreferences,
                     maxTurns: Number(maxTurns) || 10,
@@ -111,7 +127,6 @@ export default function Home() {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let fullIncomingText = '';
-            const baseStoryHistory = story + `\n\n> ${username}: ${userAction}\n\n`;
 
             while (true) {
                 const { value, done } = await reader.read();
@@ -125,9 +140,7 @@ export default function Home() {
             }
 
             setTurnCount((prev) => prev + 1);
-
-            // Parse game-world properties and end states dynamically
-            processTelemetries(fullIncomingText);
+            processTelemetries(fullIncomingText, maxTurns);
 
         } catch (error) {
             console.error(error);
@@ -137,7 +150,6 @@ export default function Home() {
         }
     };
 
-    // Helper: Strips tracking metadata brackets out of visual context logs dynamically
     const parseMetadata = (text: string) => {
         const cleanStory = text
             .replace(/<Zone>[\s\S]*?<\/Zone>/gi, '')
@@ -148,34 +160,37 @@ export default function Home() {
         return { cleanStory };
     };
 
-    // Helper: Reads tag metadata updates to mutate local state registers safely
-    const processTelemetries = (text: string) => {
-        const zoneMatch = /<Zone>([\s\S]*?)<\/Zone>/i.exec(text);
-        if (zoneMatch && zoneMatch[1]) setCurrentZone(zoneMatch[1].trim());
+    const processTelemetries = (currentTurnRawText: string, currentMaxTurnsString: string) => {
+        const zoneMatch = /<Zone>([\s\S]*?)<\/Zone>/i.exec(currentTurnRawText);
+        if (zoneMatch && zoneMatch[1]) setCurrentZone(zoneMatch[1].trim()); // Fixed: Added [1]
 
-        const statusMatch = /<Status>([\s\S]*?)<\/Status>/i.exec(text);
-        if (statusMatch && statusMatch[1]) setTacticalStatus(statusMatch[1].trim());
+        const statusMatch = /<Status>([\s\S]*?)<\/Status>/i.exec(currentTurnRawText);
+        if (statusMatch && statusMatch[1]) setTacticalStatus(statusMatch[1].trim()); // Fixed: Added [1]
 
-        // Process array element drops and loops
-        const addMatches = [...text.matchAll(/<Add>([\s\S]*?)<\/Add>/gi)];
+        const addMatches = [...currentTurnRawText.matchAll(/<Add>([\s\S]*?)<\/Add>/gi)];
         addMatches.forEach(match => {
-            const item = match[1].trim();
-            setInventory(prev => prev.includes(item) ? prev : [...prev, item]);
+            if (match[1]) { // Fixed: Added check and [1]
+                const item = match[1].trim();
+                setInventory(prev => prev.includes(item) ? prev : [...prev, item]);
+            }
         });
 
-        const removeMatches = [...text.matchAll(/<Remove>([\s\S]*?)<\/Remove>/gi)];
+        const removeMatches = [...currentTurnRawText.matchAll(/<Remove>([\s\S]*?)<\/Remove>/gi)];
         removeMatches.forEach(match => {
-            const item = match[1].trim();
-            setInventory(prev => prev.filter(i => i !== item));
+            if (match[1]) { // Fixed: Added check and [1]
+                const item = match[1].trim();
+                setInventory(prev => prev.filter(i => i !== item));
+            }
         });
 
-        // Check strict narrative resolution conditions
-        const upperText = text.toUpperCase();
-        if (upperText.includes('GAME OVER')) {
+        const upperText = currentTurnRawText.toUpperCase();
+        const targetMax = Number(currentMaxTurnsString) || 10;
+
+        if (upperText.includes('GAME OVER') || upperText.includes('YOU LOSE') || upperText.includes('DIED') || upperText.includes('FAIL')) {
             setGameState('LOST');
-        } else if (upperText.includes('VICTORY')) {
+        } else if (upperText.includes('VICTORY') || upperText.includes('YOU WIN') || upperText.includes('TRIUMPH')) {
             setGameState('WON');
-        } else if (turnCount >= Number(maxTurns)) {
+        } else if (turnCount >= targetMax && targetMax > 1) {
             setGameState('WON');
         }
     };
@@ -205,6 +220,9 @@ export default function Home() {
                     setMaxTurns={setMaxTurns}
                     isLoading={isLoading}
                     handleStartGame={handleStartGame}
+                    // Passing down the clean string state framework variables props channel:
+                    gameMode={gameMode}
+                    setGameMode={setGameMode}
                 />
             )}
 

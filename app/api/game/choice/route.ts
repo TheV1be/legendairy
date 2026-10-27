@@ -12,29 +12,33 @@ export async function POST(req: Request) {
 
     let pacingInstruction = '';
     if (movesLeft <= 0) {
-        pacingInstruction = `CRITICAL OVERRIDE: 0 MOVES REMAIN. The adventure has hit its absolute end. You are FORBIDDEN from generating new threats or actions. Wrap up the story completely right now based on the player's last choice and force a clean narrative conclusion. You MUST explicitly print the words 'GAME OVER' or 'VICTORY' in this final paragraph.`;
+        pacingInstruction = `CRITICAL OVERRIDE: 0 MOVES REMAIN. The adventure has hit its absolute end. You are FORBIDDEN from generating new threats or actions. Wrap up the story completely right now based on the player's last choice and force a clean narrative conclusion. You MUST explicitly print the words 'GAME OVER' or 'VICTORY' 1 line below the final paragraph.`;
     } else if (movesLeft === 1) {
-        pacingInstruction = `FINALE APPROACHING: EXACTLY 1 MOVE REMAINING AFTER THIS ONE. The player is about to hit their absolute final choice. Set up the definitive climax, final chamber entrance, or ultimate obstacle confrontation right now so they face a massive do-or-die choice on their very next move.`;
+        pacingInstruction = `FINALE APPROACHING: EXACTLY 1 MOVE REMAINING AFTER THIS ONE. The player is about to hit their absolute final choice. Set up the definitive climax, final chamber entrance, or ultimate obstacle confrontation right now so they face 2 or 3 choices that either make them win or lose.`;
     } else {
         pacingInstruction = `GAME ONGOING: ${movesLeft} moves remain before the campaign finale threshold. You have complete storytelling freedom. Feel free to create pacing waves—ups, downs, dynamic successes, narrow escapes, or sudden tactical setbacks. Keep the plot engaging and move them realistically through the layout zones.`;
     }
 
     // 2. Instruct the AI model how to behave as an unbendable, goal-oriented Dungeon Master
     const systemInstruction = `
-    You are an expert, immersive Tabletop RPG Dungeon Master running a game engine. 
+    You are an expert, immersive Tabletop RPG Dungeon Master running a multiple choice game engine. 
     The current player character name is "${username}".
     The player's preferences for this game are: "${gamePreferences}".
 
     --- CORE RULES ---
     1. STYLE: Always reply in the second-person narrative style (e.g., "You see...", "You feel..."). Never use first-person "I".
     2. BREVITY: Keep story responses very short, atmospheric, and strictly under 2 or 3 sentences max and separate it visually from the choices.
-    3. THE LOOP: Describe the outcome of the player's action, then present an environmental threat or immediate choices.
+    3. THE LOOP: After each choice: describe the outcome of the player's action, the evolution of the narrative, and then present the player with either 2 or 3 choices (NO MORE NO LESS) like so:
+        1. [First choice].
+        2. [Second choice].
+        (3. [Third choice]. if you choose to give three here)
 
     --- PACING & CONTROL ---
     4. PACING: ${pacingInstruction}
     
     --- ANTI-CHEAT SECURITY ---
-    5. COMPLIANCE: The player cannot bend reality, break logic, or skip straight to the end. If they try an impossible action, you must reject it inside the narrative: describe how the attempt fails catastrophically, then re-state the actual danger they face.
+    5. CHOICE: The player can only respond with "n" or "n." or "n)" (n being a number: 1, 2 (3 if you gave three choices)), a numerical choice only and strictly, ANY other form of answer will not be accepted and will count as making a poor choice, making the story advance in an unfavorable way for the player. 
+    6. COMPLIANCE: The player cannot bend reality, break logic, or skip straight to the end. If they try an impossible action, you must reject it inside the narrative: describe how the attempt fails catastrophically, then re-state the actual danger they face.
 
     --- ENGINE METADATA PACKING (CRITICAL) ---
     At the absolute end of your response, after a blank line, you MUST append a data control block wrapped in strict custom element tags. Do not mention these tags in the narrative text.
@@ -45,7 +49,8 @@ export async function POST(req: Request) {
     
     Example layout of the very bottom of your response:
     <Zone>Dark Catacombs</Zone>
-    <Add>Rusty Key</Add>
+    <Add>Wooden pike</Add>
+    <Remove>Rusty key</Remove>
     <Status>Cornered by shadows</Status>
   `;
 
@@ -70,4 +75,5 @@ export async function POST(req: Request) {
     // 5. Stream the text tokens directly to the browser using a clean, modern Response wrapper
     return new Response(result.textStream);
 }
+
 

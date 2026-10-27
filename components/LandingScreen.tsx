@@ -1,5 +1,7 @@
 'use client';
 
+import { GameMode } from '@/app/page'; // Safely pull our structural type constraint contract definition
+
 interface LandingScreenProps {
     username: string;
     setUsername: (value: string) => void;
@@ -9,6 +11,10 @@ interface LandingScreenProps {
     setMaxTurns: (value: string) => void;
     isLoading: boolean;
     handleStartGame: () => void;
+
+    // Refactored State Properties Types:
+    gameMode: GameMode;
+    setGameMode: (value: GameMode) => void;
 }
 
 export default function LandingScreen({
@@ -20,6 +26,8 @@ export default function LandingScreen({
     setMaxTurns,
     isLoading,
     handleStartGame,
+    gameMode,
+    setGameMode,
 }: LandingScreenProps) {
     return (
         <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-lg p-6 shadow-2xl text-center">
@@ -50,14 +58,39 @@ export default function LandingScreen({
                 placeholder="10"
                 min="1"
                 max="50"
-                className="w-full bg-zinc-950 border border-zinc-800 rounded px-4 py-2 text-sm focus:outline-none focus:border-amber-500 text-zinc-50 font-mono mb-6"
+                className="w-full bg-zinc-950 border border-zinc-800 rounded px-4 py-2 text-sm focus:outline-none focus:border-amber-500 text-zinc-50 font-mono mb-4"
             />
+
+            {/* REFACTORED: String check matching logic makes adding future options a breeze */}
+            <p className="text-zinc-400 mb-2 font-mono text-xs text-left">Gameplay Input Mode:</p>
+            <div className="grid grid-cols-2 gap-2 mb-6 font-mono text-xs">
+                <button
+                    type="button"
+                    onClick={() => setGameMode('FREE')}
+                    className={`py-2 rounded border transition font-bold ${gameMode === 'FREE'
+                            ? 'bg-amber-600/10 border-amber-500 text-amber-400'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400'
+                        }`}
+                >
+                    ✍️ Free Action Text
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setGameMode('CHOICE')}
+                    className={`py-2 rounded border transition font-bold ${gameMode === 'CHOICE'
+                            ? 'bg-amber-600/10 border-amber-500 text-amber-400'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-400'
+                        }`}
+                >
+                    🔢 Strict 1 / 2 / 3 Choices
+                </button>
+            </div>
 
             <button
                 type="button"
                 disabled={isLoading || !username.trim()}
                 onClick={handleStartGame}
-                className="w-full bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-800 text-zinc-950 disabled:text-zinc-500 font-bold px-4 py-2 rounded text-sm transition font-mono"
+                className="w-full bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold px-4 py-2 rounded text-sm transition font-mono"
             >
                 {isLoading ? "GENERATING REALM..." : "ENTER REALM"}
             </button>
